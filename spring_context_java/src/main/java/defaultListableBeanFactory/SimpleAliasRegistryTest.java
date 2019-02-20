@@ -15,14 +15,29 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Created by rnthd2 on 2019. 2. 14..
  */
+
+/**
+ * {@link AliasRegistryTest} 인터페이스의 간단한 구현
+ * {@link org.springframework.beans.factory.support.BeanDefinitionRegistry} 의 아버지가 AliasRegistry
+ */
 public class SimpleAliasRegistryTest implements AliasRegistryTest{
+
 	protected final Log logger = LogFactory.getLog(this.getClass());
+
+	/**
+	 * 맵<알리아스, 이름>
+	 */
 	private final Map<String, String> aliasMap = new ConcurrentHashMap<String, String>(16);
 
-	public SimpleAliasRegistryTest(){
-
-	}
-
+	/**
+	 * 이미 이름이 있으면 해당 알리아스를 지움...? 쿨함
+	 * 이미 알리아스가 있으면 그냥 return
+	 * 이러나저러나 남아있으면 IllegalStateException
+	 *
+	 * @param name 정식이름
+	 * @param alias 등록될 알리아스
+	 */
+	@Override
 	public void registerAlias(String name, String alias){
 		Assert.hasText(name,"'name' must not be empty");
 		Assert.hasText(alias, "'alas' mush not be empty");
@@ -40,6 +55,7 @@ public class SimpleAliasRegistryTest implements AliasRegistryTest{
 						// An existing alias
 						return;
 					}
+					/*todo 얘를 좀 봐야될 듯!!*/
 					if(!allowAliasOverriding()) {
 						throw new IllegalStateException("Cannot define alias '" + alias + "' for name '" +
 						name + "': It is already registered for name '" + registeredName + "'.");
@@ -62,6 +78,12 @@ public class SimpleAliasRegistryTest implements AliasRegistryTest{
 		return true;
 	}
 
+	/**
+	 * 있는애인지 확인해보자
+	 * @param name
+	 * @param alias
+	 * @return
+	 */
 	public boolean hasAlias(String name, String alias){
 		for (Map.Entry<String, String> entry : this.aliasMap.entrySet()) {
 			String registeredName = entry.getValue();
@@ -75,6 +97,10 @@ public class SimpleAliasRegistryTest implements AliasRegistryTest{
 		return false;
 	}
 
+	/**
+	 * [삭제]
+	 * @param alias 지울거
+	 */
 	@Override
 	public void removeAlias(String alias){
 		synchronized (this.aliasMap) {
@@ -85,6 +111,11 @@ public class SimpleAliasRegistryTest implements AliasRegistryTest{
 		}
 	}
 
+	/**
+	 * [확인] 존재 여부
+	 * @param name
+	 * @return
+	 */
 	public boolean isAlias(String name){
 		return this.aliasMap.containsKey(name);
 	}
@@ -98,6 +129,11 @@ public class SimpleAliasRegistryTest implements AliasRegistryTest{
 		return StringUtils.toStringArray(result);
 	}
 
+	/**
+	 * 이름으로 확인해서 같으면 거기 리스트에 추가하자
+	 * @param name
+	 * @param result
+	 */
 	private void retrieveAliases(String name, List<String> result){
 		this.aliasMap.forEach((alias, registeredName) -> {
 			if(registeredName.equals(name)) {
@@ -107,6 +143,10 @@ public class SimpleAliasRegistryTest implements AliasRegistryTest{
 		});
 	}
 
+	/**
+	 * todo StringValueResolver이게 뭔지 봐야될듯
+	 * @param valueResolver
+	 */
 	public void resolveAliases(StringValueResolver valueResolver) {
 		Assert.notNull(valueResolver, "StringValueResolver must not be null");
 		synchronized (this.aliasMap) {
@@ -141,6 +181,11 @@ public class SimpleAliasRegistryTest implements AliasRegistryTest{
 		}
 	}
 
+	/**
+	 * 어따쓰지
+	 * @param name
+	 * @return
+	 */
 	public String  canonicalName(String name){
 		String canonicalName = name;
 		// Handle aliasing..
