@@ -1,5 +1,7 @@
 package defaultListableBeanFactory;
 
+import org.springframework.beans.factory.BeanCreationNotAllowedException;
+import org.springframework.beans.factory.BeanCurrentlyInCreationException;
 import org.springframework.beans.factory.ObjectFactory;
 import org.springframework.beans.factory.config.SingletonBeanRegistry;
 import org.springframework.lang.Nullable;
@@ -33,7 +35,7 @@ public class DefaultSingletonBeanRegistryTest extends SimpleAliasRegistryTest im
 	private final Map<String, ObjectFactory<?>> singletonFactories = new HashMap<>(16);
 
 	/**
-	 * 싱글톤 이전 객체 캐시(백업용?)
+	 * todo 초기 싱글톤 객체
 	 */
 	private final Map<String, Object> earlySingletonObjects = new HashMap<>(16);
 
@@ -105,6 +107,14 @@ public class DefaultSingletonBeanRegistryTest extends SimpleAliasRegistryTest im
 
 	}
 
+	/**
+	 * [추가] 이 팩토리의 싱글턴 캐시에 주어진 싱글턴 객체를
+	 * 싱글 톤의 초기 등록 요청
+	 * todo this.earlySingletonObjects.remove(beanName) 에는 지운다? >> 초기 싱글톤 객체는 지운다
+	 *
+	 * @param beanName
+	 * @param singletonObject
+	 */
 	protected void addSingleTon(String beanName, Object singletonObject) {
 		synchronized (this.singletonObjects) {
 			this.singletonObjects.put(beanName, singletonObject);
@@ -122,6 +132,84 @@ public class DefaultSingletonBeanRegistryTest extends SimpleAliasRegistryTest im
 				this.earlySingletonObjects.remove(beanName);
 				this.registeredSingletons.add(beanName);
 			}
+		}
+	}
+
+	@Override
+	@Nullable
+	public Object getSingleton(String beanName) {
+		return getSingleton(beanName, true);
+	}
+
+	/**
+	 * [조회] name으로 등록된 싱글톤 객체를
+	 * 이미 인스턴스화된 싱글톤인지 확인하고
+	 * 지금 만들어진 싱글톤의 레퍼런스도 허락한다.
+	 *
+	 * @param beanName 찾을 애
+	 * @param allowEarlyReference  초기 레퍼런스 생성 여부
+	 * @return
+	 */
+	@Nullable
+	public Object getSingleton(String beanName, boolean allowEarlyReference) {
+		Object singletonObject = this.singletonObjects.get(beanName);
+		if (singletonObject == null && isSingletonCurrentlyInCreation(beanName)) {
+			synchronized (this.singletonObjects) {
+				singletonObject = this.earlySingletonObjects.get(beanName);
+				if (singletonObject == null && allowEarlyReference) {
+					ObjectFactory<?> singletonFactory = this.singletonFactories.get(beanName);
+					if (singletonFactory != null) {
+						singletonObject = singletonFactory.getObject();
+						this.earlySingletonObjects.put(beanName, singletonObject);
+						this.singletonFactories.remove(beanName);
+					}
+				}
+			}
+		}
+		return singletonObject;
+	}
+
+	public Object getSingleton(String beanName, ObjectFactory<?> singletonFactory) {
+		Assert.notNull(beanName, "Bean name mush not be null");
+		synchronized (this.singletonObjects) {
+			Object singletonObject = this.singletonObjects.get(beanName);
+			if( singletonObject == null) {
+				if(this.singletonsCurrentlyInDestruction){
+					/**
+					 super("Error creating bean with name '" + beanName + "': " + msg);
+					 this.beanName = beanName;
+					 this.resourceDescription = null;
+					 */
+					throw new BeanCreationNotAllowedException(beanName,
+							"Singleton bean creation not allowed while singletons of this factory are in destruction " +
+							"(Do not request a bean from a BeanFactory in a destory method implementation!");
+				}
+				if(logger.isDebugEnabled()){
+					logger.debug("Creation shared instance of singleton bean '" + beanName + "'");
+				}
+				beforeSingletonCreation(beanName);
+			}
+		}
+	}
+
+	/**
+	 * [확인] 특정 싱글톤 빈이 현재 만들어져 있는지 아닌지
+ 	 * @param beanName
+	 * @return
+	 */
+	public boolean isSingletonCurrentlyInCreation(String beanName) {
+		return this.singletonsCurrentlyInCreation.contains(beanName);
+	}
+
+	/**
+	 * [콜백] 싱글톤 만들기 전에
+	 *
+	 * @param beanName
+	 * todo @see #isSingletonCurrentlyInCreation
+	 */
+	protected void beforeSingletonCreation(String beanName) {
+		if (!this.inCreationCheckExclusions.contains(beanName) && !this.singletonsCurrentlyInCreation.add(beanName)) {
+			throw new BeanCurrentlyInCreationException(beanName);
 		}
 	}
 }
