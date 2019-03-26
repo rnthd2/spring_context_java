@@ -1,7 +1,7 @@
 package defaultListableBeanFactory;
 
-import org.springframework.beans.factory.BeanCreationNotAllowedException;
 import org.springframework.beans.factory.BeanCurrentlyInCreationException;
+import org.springframework.beans.factory.DisposalBeanTest;
 import org.springframework.beans.factory.ObjectFactory;
 import org.springframework.beans.factory.config.SingletonBeanRegistry;
 import org.springframework.lang.Nullable;
@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 공유된 bean 인스턴스의 기본 registry
  */
-public class DefaultSingletonBeanRegistryTest extends SimpleAliasRegistryTest implements SingletonBeanRegistry{
+public class DefaultSingletonBeanRegistryTest extends SimpleAliasRegistryTest implements SingletonBeanRegistry {
 
 	/**
 	 * 싱글톤 객체 캐시
@@ -46,12 +46,11 @@ public class DefaultSingletonBeanRegistryTest extends SimpleAliasRegistryTest im
 
 	/**
 	 * 지금 있는 bean 이름 집합
-	 *
+	 * <p>
 	 * newSetFromMap의 매개변수는 Map<String, Boolean> 의 형태
 	 * SetFromMap new class 반환
-	 *      private final Map<E, Boolean> m;  // The backing map
-	 *      private transient Set<E> s;       // Its keySet
-	 *
+	 * private final Map<E, Boolean> m;  // The backing map
+	 * private transient Set<E> s;       // Its keySet
 	 */
 	private final Set<String> singletonsCurrentlyInCreation =
 			Collections.newSetFromMap(new ConcurrentHashMap<>(16));
@@ -94,13 +93,15 @@ public class DefaultSingletonBeanRegistryTest extends SimpleAliasRegistryTest im
 	private final Map<String, Set<String>> dependenciesForBeanMap = new ConcurrentHashMap<>(64);
 
 	@Override
-	public void registerSingleton(String beanName, Object singletonObject) throws IllegalStateException{
+	public void registerSingleton(String beanName, Object singletonObject) throws IllegalStateException {
 		Assert.notNull(beanName, "Bean name must not be null");
 		Assert.notNull(singletonObject, "Singleton object must not be null");
 		synchronized (this.singletonObjects) {
 			Object oldObject = this.singletonObjects.get(beanName);
-			if(oldObject != null){
-				throw new IllegalStateException("Could not register object [" + singletonObject + "] under bean name " + beanName +" : this is already object [ " + oldObject + "] bound");
+			if (oldObject != null) {
+				throw new IllegalStateException(
+						"Could not register object [" + singletonObject + "] under bean name " + beanName + " : this is already object [ " + oldObject
+								+ "] bound");
 			}
 			addSingleTon(beanName, singletonObject);
 		}
@@ -127,7 +128,7 @@ public class DefaultSingletonBeanRegistryTest extends SimpleAliasRegistryTest im
 	protected void addSingletonFactory(String beanName, ObjectFactory<?> singletonFactory) {
 		Assert.notNull(singletonFactory, "Singleton factory mush not be null");
 		synchronized (this.singletonObjects) {
-			if(!this.singletonObjects.containsKey(beanName)){
+			if (!this.singletonObjects.containsKey(beanName)) {
 				this.singletonFactories.put(beanName, singletonFactory);
 				this.earlySingletonObjects.remove(beanName);
 				this.registeredSingletons.add(beanName);
@@ -141,13 +142,29 @@ public class DefaultSingletonBeanRegistryTest extends SimpleAliasRegistryTest im
 		return getSingleton(beanName, true);
 	}
 
+	@Override public boolean containsSingleton(String beanName) {
+		return false;
+	}
+
+	@Override public String[] getSingletonNames() {
+		return new String[0];
+	}
+
+	@Override public int getSingletonCount() {
+		return 0;
+	}
+
+	@Override public Object getSingletonMutex() {
+		return null;
+	}
+
 	/**
 	 * [조회] name으로 등록된 싱글톤 객체를
 	 * 이미 인스턴스화된 싱글톤인지 확인하고
 	 * 지금 만들어진 싱글톤의 레퍼런스도 허락한다.
 	 *
-	 * @param beanName 찾을 애
-	 * @param allowEarlyReference  초기 레퍼런스 생성 여부
+	 * @param beanName            찾을 애
+	 * @param allowEarlyReference 초기 레퍼런스 생성 여부
 	 * @return
 	 */
 	@Nullable
@@ -169,17 +186,17 @@ public class DefaultSingletonBeanRegistryTest extends SimpleAliasRegistryTest im
 		return singletonObject;
 	}
 
-	public Object getSingleton(String beanName, ObjectFactory<?> singletonFactory) {
+	/*public Object getSingleton(String beanName, ObjectFactory<?> singletonFactory) {
 		Assert.notNull(beanName, "Bean name mush not be null");
 		synchronized (this.singletonObjects) {
 			Object singletonObject = this.singletonObjects.get(beanName);
 			if( singletonObject == null) {
 				if(this.singletonsCurrentlyInDestruction){
-					/**
-					 super("Error creating bean with name '" + beanName + "': " + msg);
-					 this.beanName = beanName;
-					 this.resourceDescription = null;
-					 */
+					*//**
+	 super("Error creating bean with name '" + beanName + "': " + msg);
+	 this.beanName = beanName;
+	 this.resourceDescription = null;
+	 *//*
 					throw new BeanCreationNotAllowedException(beanName,
 							"Singleton bean creation not allowed while singletons of this factory are in destruction " +
 							"(Do not request a bean from a BeanFactory in a destory method implementation!");
@@ -188,13 +205,49 @@ public class DefaultSingletonBeanRegistryTest extends SimpleAliasRegistryTest im
 					logger.debug("Creation shared instance of singleton bean '" + beanName + "'");
 				}
 				beforeSingletonCreation(beanName);
+				boolean newSingleton = false;
+				boolean recordSuppressedExceptions = (this.suppressedExceptions == null);
+				if (recordSuppressedExceptions) {
+					this.suppressedExceptions = new LinkedHashSet<>();
+				}
+				try{
+					singletonObject = singletonFactory.getObject();
+					newSingleton = true;
+				}
+				catch (IllegalStateException ex){
+					singletonObject = this.singletonObjects.get(beanName);
+					if ( singletonObject == null){
+						throw ex;
+					}
+				}
+				catch (BeanCreationException ex){
+					if(recordSuppressedExceptions) {
+						//todo 무조건 null 아닌감 --> 디버깅 필요
+						for (Exception suppressedException : this.suppressedExceptions) {
+							ex.addRelatedCause(suppressedException);
+						}
+						//
+					throw ex;
+				}
+				finally {
+					//todo 어차피 null 일때 true 아닌감
+					if(recordSuppressedExceptions) {
+						this.suppressedExceptions = null;
+					}
+					afterSingletonCreation(beanName);
+				}
+				if (newSingleton) {
+					addSingleTon(beanName, singletonObject);
+				}
 			}
+			return singletonObject;
 		}
-	}
+	}*/
 
 	/**
 	 * [확인] 특정 싱글톤 빈이 현재 만들어져 있는지 아닌지
- 	 * @param beanName
+	 *
+	 * @param beanName
 	 * @return
 	 */
 	public boolean isSingletonCurrentlyInCreation(String beanName) {
@@ -204,12 +257,40 @@ public class DefaultSingletonBeanRegistryTest extends SimpleAliasRegistryTest im
 	/**
 	 * [콜백] 싱글톤 만들기 전에
 	 *
-	 * @param beanName
-	 * todo @see #isSingletonCurrentlyInCreation
+	 * @param beanName todo @see #isSingletonCurrentlyInCreation
 	 */
 	protected void beforeSingletonCreation(String beanName) {
 		if (!this.inCreationCheckExclusions.contains(beanName) && !this.singletonsCurrentlyInCreation.add(beanName)) {
 			throw new BeanCurrentlyInCreationException(beanName);
 		}
 	}
+
+	/**
+	 * [콜백] 싱글톤 만든 후에
+	 *
+	 * @param beanName
+	 */
+	protected void afterSingletonCreation(String beanName) {
+		if (!this.inCreationCheckExclusions.contains(beanName) && !this.singletonsCurrentlyInCreation.remove(beanName)) {
+			throw new IllegalStateException("Singleton '" + beanName + "'isn't currently in creation.");
+		}
+	}
+
+	/**
+	 * bean 의 라이프 사이클 중 생성을 나타내는 마커 인터페이스 - InitializingBean
+	 * bean 의 라이프 사이클 중 소멸을 나타내는 마커 인터페이스 - DisposalBean
+	 *
+	 * @param beanName
+	 * @param bean
+	 */
+	public void registerDisposableBean(String beanName, DisposalBeanTest bean) {
+		synchronized (this.disposableBeans) {
+			this.disposableBeans.put(beanName, bean);
+		}
+	}
+
+	/**
+	 * todo mutax
+	 */
+
 }
